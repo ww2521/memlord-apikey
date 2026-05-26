@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Settings — Memlord{% endblock %}
+{% block content %}
+
+<div x-data="settingsPage()" x-init="init()">
+
+    <div class="page-header">
+        <h1 class="page-title">Settings</h1>
+    </div>
+
+    <!-- Create key form -->
+    <div class="detail-card" style="margin-bottom:1.5rem">
+        <div class="section-title">Create API Key</div>
+        <form @submit.prevent="createKey()" style="display:flex;gap:0.625rem;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+                <label class="form-label">Name</label>
+                <input class="form-input" type="text" x-model="newKeyName" placeholder="e.g. Claude Code" required maxlength="100">
+                <div class="form-hint">A label to help you identify this key later.</div>
+            </div>
+            <button type="submit" class="btn btn-primary" :disabled="creating">
+                <span x-show="!creating">Create Key</span>
+                <span x-show="creating">Creating...</span>
+            </button>
+        </form>
+
+        <!-- New key display (shown once after creation) -->
+        <template x-if="newKeyRaw">
+            <div style="margin-top:1rem;padding:1rem;border-radius:var(--radius-sm);background:var(--success-bg);border:1px solid var(--success-bdr)">
+                <div style="font-size:0.8125rem;color:var(--success-text);margin-bottom:0.5rem;font-weight:500">
+                    API key created. Copy it now — it won't be shown again.
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                    <code class="form-input form-mono" x-text="newKeyRaw" readonly
+                          style="flex:1;font-size:0.8125rem;cursor:text;user-select:all"></code>
+                    <button class="btn btn-ghost btn-sm" @click="copyKey()">Copy</button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Error message -->
+    <template x-if="error">
+        <div class="alert alert-error" x-text="error"></div>
+    </template>
+
+    <!-- Key list -->
+    <div class="section-title">Your API Keys</div>
+
+    <div x-show="loading" style="text-align:center;padding:2rem;color:var(--text-4)">Loading...</div>
+
+    <template x-for="key in keys" :key="key.id">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <div style="font-weight:600;font-size:.9375rem" x-text="key.name"></div>
+                    <div style="font-size:.75rem;color:var(--text-4);font-family:monospace;margin-top:0.25rem" x-text="key.prefix + '...'"></div>
+                </div>
+                <button class="btn btn-danger btn-sm" @click="revokeKey(key.id, key.name)">Revoke</button>
+            </div>
+            <div class="card-meta">
+                <span style="font-size:.75rem;color:var(--text-4)">Created: <span x-text="formatDate(key.created_at)"></span></span>
+                <template x-if="key.last_used_at">
+                    <span style="font-size:.75rem;color:var(--text-4)">Last used: <span x-text="formatDate(key.last_used_at)"></span></span>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <div x-show="!loading && keys.length === 0" class="empty-state">
+        <div class="empty-state-title">No API keys</div>
+        <div class="empty-state-desc">Create an API key to authenticate MCP clients.</div>
+    </div>
+
+</div>
+
+<script>
+function settingsPage() {
+    return {
+        keys: [],
+        loading: true,
+        creating: false,
+        newKeyName: '',
+        newKeyRaw: null,
+        error: null,
+
+        async init() {
+            await this.loadKeys();
+        },
+
+        async loadKeys() {
+            const r = await fetch('/ui/settings/api-keys');
+            this.keys = await r.json();
+            this.loading = false;
+        },
+
+        async createKey() {
+            this.error = null;
+            this.newKeyRaw = null;
+            this.creating = true;
+            try {
+                const body = new URLSearchParams({ name: this.newKeyName });
+                const r = await fetch('/ui/settings/api-keys', { method: 'POST', body });
+                if (!r.ok) {
+                    const data = await r.json();
+                    throw new Error(data.detail || 'Failed to create key');
+                }
+                const data = await r.json();
+                this.newKeyRaw = data.raw_key;
+                this.newKeyName = '';
+                await this.loadKeys();
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.creating = false;
+            }
+        },
+
+        async revokeKey(id, name) {
+            if (!confirm(`Revoke "${name}"? This action cannot be undone.`)) return;
+            await fetch(`/ui/settings/api-keys/${id}`, { method: 'DELETE' });
+            await this.loadKeys();
+        },
+
+        copyKey() {
+            navigator.clipboard.writeText(this.newKeyRaw);
+        },
+
+        formatDate(d) {
+            return new Date(d).toLocaleDateString(undefined, {
+                month: 'short', day: 'numeric', year: 'numeric',
+            });
+        },
+    };
+}
+</script>
+
+{% endblock %}
