@@ -28,8 +28,25 @@ async def _current_user_gen(
             raise PermissionError("Authentication required")
         yield settings.stdio_user_id
         return
+
+    client_id = access_token.client_id
+
+    # API key path: synthetic client_id "api_key:<id>"
+    if client_id.startswith("api_key:"):
+        key_id = int(client_id.split(":", 1)[1])
+        from memlord.models.api_key import ApiKey  # noqa: PLC0415
+
+        user_id = await s.scalar(
+            select(ApiKey.user_id).where(ApiKey.id == key_id)
+        )
+        if user_id is None:
+            raise PermissionError("API key not found")
+        yield user_id
+        return
+
+    # OAuth path (existing)
     user_id = await s.scalar(
-        select(OAuthClient.user_id).where(OAuthClient.client_id == access_token.client_id)
+        select(OAuthClient.user_id).where(OAuthClient.client_id == client_id)
     )
     if user_id is None:
         raise PermissionError("Unauthenticated")
