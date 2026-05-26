@@ -31,6 +31,7 @@ from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from memlord.auth import hash_password
+from memlord.dao.api_key import ApiKeyDao
 from memlord.dao.user import UserDao
 from memlord.models.oauth_client import OAuthClient
 from memlord.models.revoked_token import RevokedToken
@@ -492,31 +493,51 @@ class MemlordOAuthProvider(OAuthProvider):
         return token
 
     async def load_access_token(self, token: str) -> AccessToken | None:  # type: ignore[override]
+        # --- JWT path (existing) ---
         try:
             claims = self._jwt.verify_token(token)
-        except JoseError as exc:
-            logger.debug("load_access_token JWT invalid: %s", exc)
-            return None
-        jti = claims.get("jti")
-        if not jti:
-            return None
+        except JoseError:
+            claims = None
 
-        # Check revocation in DB (survives restarts, works cross-instance).
-        async with self.session() as s:
-            revoked = await s.scalar(sa.select(RevokedToken.jti).where(RevokedToken.jti == jti))
-        if revoked is not None:
-            logger.debug("load_access_token: jti revoked jti=%s...", jti[:8])
-            return None
+        if claims is not None:
+            jti = claims.get("jti")
+            if not jti:
+                return None
 
-        client_id = claims.get("client_id", "")
-        scopes = claims.get("scope", "").split() if claims.get("scope") else []
-        exp = claims.get("exp")
-        return AccessToken(
-            token=token,
-            client_id=client_id,
-            scopes=scopes,
-            expires_at=int(exp) if exp else None,
-        )
+            async with self.session() as s:
+                revoked = await s.scalar(
+                    sa.select(RevokedToken.jti).where(RevokedToken.jti == jti)
+                )
+            if revoked is not None:
+                logger.debug("load_access_token: jti revoked jti=%s...", jti[:8])
+                return None
+
+            client_id = claims.get("client_id", "")
+            scopes = claims.get("scope", "").split() if claims.get("scope") else []
+            exp = claims.get("exp")
+            return AccessToken(
+                token=token,
+                client_id=client_id,
+                scopes=scopes,
+                expires_at=int(exp) if exp else None,
+            )
+
+        # --- API key path ---
+        if token.startswith("mlk_"):
+            async with self.session() as s:
+                result = await ApiKeyDao(s).validate_key(token)
+                if result is not None:
+                    key_id, user_id = result
+                    await ApiKeyDao(s).touch_last_used(key_id)
+                    return AccessToken(
+                        token=token,
+                        client_id=f"api_key:{key_id}",
+                        scopes=["mcp"],
+                        expires_at=None,
+                    )
+            logger.debug("load_access_token: api_key not found")
+
+        return None
 
     async def load_refresh_token(
         self, client: OAuthClientInformationFull, refresh_token: str
