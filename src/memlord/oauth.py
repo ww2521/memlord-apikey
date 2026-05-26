@@ -525,10 +525,11 @@ class MemlordOAuthProvider(OAuthProvider):
         # --- API key path ---
         if token.startswith("mlk_"):
             async with self.session() as s:
-                result = await ApiKeyDao(s).validate_key(token)
+                dao = ApiKeyDao(s)
+                result = await dao.validate_key(token)
                 if result is not None:
-                    key_id, user_id = result
-                    await ApiKeyDao(s).touch_last_used(key_id)
+                    key_id, _user_id = result
+                    await dao.touch_last_used(key_id)
                     return AccessToken(
                         token=token,
                         client_id=f"api_key:{key_id}",
