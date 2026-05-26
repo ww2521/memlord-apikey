@@ -48,4 +48,4 @@ async def revoke_key(
     deleted = await ApiKeyDao(s).delete(user.id, key_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="API key not found")
-    return JSONResponse(content=None, status_code=status.HTTP_204_NO_CONTENT)
+    return None
