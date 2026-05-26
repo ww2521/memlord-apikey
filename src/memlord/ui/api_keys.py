@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from starlette import status
 
 from memlord.dao.api_key import ApiKeyDao
@@ -44,8 +44,8 @@ async def create_key(
 @router.delete("/api-keys/{key_id}", response_class=JSONResponse, status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_key(
     key_id: int, user: APIUserDep, s: APISessionDep
-) -> JSONResponse:
+) -> Response:
     deleted = await ApiKeyDao(s).delete(user.id, key_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="API key not found")
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
