@@ -1,12 +1,12 @@
 import hashlib
 import secrets
-from datetime import datetime, timezone
 
 from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from memlord.models.api_key import ApiKey
 from memlord.schemas.api_key import ApiKeyCreate, ApiKeyInfo
+from memlord.utils.dt import utcnow
 
 MAX_KEYS_PER_USER = 5
 
@@ -48,7 +48,7 @@ class ApiKeyDao:
         )
         assert key_id is not None
 
-        now = datetime.now(timezone.utc)
+        now = utcnow()
         return raw_key, ApiKeyInfo(
             id=key_id,
             name=data.name,
@@ -102,6 +102,6 @@ class ApiKeyDao:
     async def touch_last_used(self, key_id: int) -> None:
         await self._s.execute(
             update(ApiKey).where(ApiKey.id == key_id).values(
-                last_used_at=datetime.now(timezone.utc)
+                last_used_at=utcnow()
             )
         )
