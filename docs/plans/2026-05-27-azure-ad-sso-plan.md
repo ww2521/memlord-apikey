@@ -4,7 +4,7 @@
 
 **Goal:** Add Azure AD (Entra ID) SSO login to Memlord's Web UI, with configurable auto-registration, login button text, and local auth toggles.
 
-**Architecture:** A new `src/memlord/sso.py` module provides two routes (`/auth/azure/login` and `/auth/azure/callback`) using authlib's Starlette OAuth integration. The callback finds or creates a Memlord user and reuses the existing `make_session_token()` session mechanism. Login page template is updated to show an Azure button and conditionally hide password/registration UI.
+**Architecture:** A new `src/memlord/sso.py` module provides two routes (`/auth/azure/login` and `/auth/azure/callback`) using authlib's Starlette OAuth integration. authlib's `authorize_redirect` stores OAuth state in `request.session`, which requires Starlette's `SessionMiddleware`. The callback finds or creates a Memlord user and reuses the existing `make_session_token()` session mechanism. Login page template is updated to show an Azure button and conditionally hide password/registration UI.
 
 **Tech Stack:** Python 3.12, FastAPI, authlib (>=1.3 Starlette integration), SQLAlchemy Core, Alembic, Jinja2
 
@@ -13,7 +13,7 @@
 ### Task 1: Add configuration fields to Settings
 
 **Files:**
-- Modify: `src/memlord/config.py:8-35`
+- Modify: `src/memlord/config.py:31-32` (add fields between `smtp_tls` and `LOG_LEVEL`)
 - Test: `tests/test_azure_sso.py`
 
 **Step 1: Write the failing test**
@@ -21,7 +21,7 @@
 Create `tests/test_azure_sso.py`:
 
 ```python
-from memlord.config import Settings, load_settings
+from memlord.config import Settings
 
 
 def test_azure_sso_defaults():
@@ -72,7 +72,7 @@ Expected: FAIL — `AttributeError: type object 'Settings' has no attribute 'azu
 
 **Step 3: Write minimal implementation**
 
-In `src/memlord/config.py`, add these fields to the `Settings` class (after the existing `smtp_tls` field, before `LOG_LEVEL`):
+In `src/memlord/config.py`, add these fields to the `Settings` class (between `smtp_tls` and `LOG_LEVEL`):
 
 ```python
     azure_sso_enabled: bool = False
@@ -225,7 +225,7 @@ git commit -m "feat: add migration for azure_sso user fields"
 ### Task 4: Add UserDao.get_or_create_by_email_for_sso() method
 
 **Files:**
-- Modify: `src/memlord/dao/user.py:78-95`
+- Modify: `src/memlord/dao/user.py:78-95` (add method after `create()`)
 - Test: `tests/test_azure_sso.py` (extend)
 
 **Step 1: Write the failing test**
@@ -234,6 +234,7 @@ Add to `tests/test_azure_sso.py`:
 
 ```python
 import pytest
+from memlord.dao.user import UserDao
 
 
 async def test_get_or_create_by_email_for_sso_existing_user(session):
@@ -355,7 +356,149 @@ git commit -m "feat: add UserDao.get_or_create_by_email_for_sso method"
 
 ---
 
-### Task 5: Create `src/memlord/sso.py` — core OIDC module
+### Task 5: Extract `_set_session` to shared utility
+
+The existing `_set_session()` in `ui/login.py:22-29` is needed by both `login.py` and the new `sso.py`. Extract it to `ui/utils.py` to avoid duplication.
+
+**Files:**
+- Modify: `src/memlord/ui/utils.py` (add `set_session_cookie` function)
+- Modify: `src/memlord/ui/login.py` (import from utils, remove local `_set_session`)
+- Test: `tests/test_azure_sso.py` (extend)
+
+**Step 1: Write the failing test**
+
+Add to `tests/test_azure_sso.py`:
+
+```python
+from fastapi import Response
+from memlord.ui.utils import set_session_cookie
+
+
+def test_set_session_cookie_sets_cookie():
+    """set_session_cookie should set memlord_session cookie."""
+    response = Response()
+    set_session_cookie(response, 42)
+    assert "memlord_session" in response.headers.get("set-cookie", "")
+    assert "httponly" in response.headers.get("set-cookie", "")
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `pytest tests/test_azure_sso.py::test_set_session_cookie_sets_cookie -v`
+Expected: FAIL — `ImportError: cannot import name 'set_session_cookie' from 'memlord.ui.utils'`
+
+**Step 3: Write the implementation**
+
+**3a.** In `src/memlord/ui/utils.py`, add the function and update `__all__`:
+
+```python
+from fastapi import Response
+
+
+def set_session_cookie(response: Response, user_id: int) -> None:
+    response.set_cookie(
+        "memlord_session",
+        make_session_token(user_id),
+        httponly=True,
+        samesite="lax",
+        secure=settings.base_url.startswith("https"),
+    )
+```
+
+Update `__all__` at the bottom:
+
+```python
+__all__ = ["APIUserDep", "make_session_token", "set_session_cookie", "templates"]
+```
+
+**3b.** In `src/memlord/ui/login.py`, replace the local `_set_session` function:
+
+Remove lines 22-29 (the `_set_session` function definition).
+
+Update the import from `.utils`:
+
+```python
+from .utils import APIUserDep, make_session_token, set_session_cookie, templates
+```
+
+Replace all usages of `_set_session(response, ...)` with `set_session_cookie(response, ...)` in `login_post`, `register_post`.
+
+**Step 4: Run test to verify it passes**
+
+Run: `pytest tests/test_azure_sso.py::test_set_session_cookie_sets_cookie -v`
+Expected: 1 passed
+
+**Step 5: Run existing login tests to ensure no regressions**
+
+Run: `pytest tests/test_dao.py tests/test_data.py -v`
+Expected: All passed
+
+**Step 6: Commit**
+
+```bash
+git add src/memlord/ui/utils.py src/memlord/ui/login.py tests/test_azure_sso.py
+git commit -m "refactor: extract _set_session to shared set_session_cookie utility"
+```
+
+---
+
+### Task 6: Add `SessionMiddleware` for authlib OAuth state
+
+**Background:** authlib's `authorize_redirect` calls `self.framework.set_state_data(request.session, state, kwargs)` to store OAuth state/nonce. Starlette's `request.session` **requires** `SessionMiddleware` to be installed, otherwise it raises `AssertionError: "SessionMiddleware must be installed to access request.session"`.
+
+**Files:**
+- Modify: `src/memlord/main.py:28` (add middleware after `app = FastAPI(...)`)
+
+**Step 1: Write the failing test**
+
+Add to `tests/test_azure_sso.py`:
+
+```python
+def test_session_middleware_installed():
+    """SessionMiddleware must be present for authlib OAuth state management."""
+    from starlette.middleware.sessions import SessionMiddleware
+    middlewares = [type(m) for m in app.user_middleware]
+    assert SessionMiddleware in middlewares
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `pytest tests/test_azure_sso.py::test_session_middleware_installed -v`
+Expected: FAIL — `AssertionError`
+
+**Step 3: Write the implementation**
+
+In `src/memlord/main.py`, add the import and middleware registration right after `app = FastAPI(...)` (line 28):
+
+```python
+from starlette.middleware.sessions import SessionMiddleware
+
+# ...
+
+app = FastAPI(title="Memlord", lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key=settings.oauth_jwt_secret)
+```
+
+**Step 4: Run test to verify it passes**
+
+Run: `pytest tests/test_azure_sso.py::test_session_middleware_installed -v`
+Expected: 1 passed
+
+**Step 5: Run full test suite to ensure no regressions**
+
+Run: `pytest tests/ -v`
+Expected: All passed (SessionMiddleware should not break existing routes)
+
+**Step 6: Commit**
+
+```bash
+git add src/memlord/main.py tests/test_azure_sso.py
+git commit -m "feat: add SessionMiddleware for authlib OAuth state management"
+```
+
+---
+
+### Task 7: Create `src/memlord/sso.py` — core OIDC module
 
 **Files:**
 - Create: `src/memlord/sso.py`
@@ -366,14 +509,10 @@ git commit -m "feat: add UserDao.get_or_create_by_email_for_sso method"
 Add to `tests/test_azure_sso.py`:
 
 ```python
-from unittest.mock import AsyncMock, MagicMock, patch
-
-
 def test_create_azure_router_returns_none_when_not_configured():
     """When azure SSO is not configured, create_azure_router returns None."""
     from memlord.sso import create_azure_router
-    # Settings defaults have azure_sso_enabled=False
-    result = create_azure_router(None)
+    result = create_azure_router()
     assert result is None
 
 
@@ -404,13 +543,12 @@ import logging
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.responses import RedirectResponse
 
 from memlord.config import settings
 from memlord.dao.user import UserDao
-from memlord.db import session_dep
-from memlord.ui.utils import make_session_token
+from memlord.db import APISessionDep
+from memlord.ui.utils import set_session_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -426,7 +564,7 @@ def _is_email_allowed(email: str, allowed_domains: list[str] | None) -> bool:
     return domain in [d.lower() for d in allowed_domains]
 
 
-def create_azure_router(app) -> APIRouter | None:
+def create_azure_router() -> APIRouter | None:
     if not (
         settings.azure_sso_enabled
         and settings.azure_client_id
@@ -452,16 +590,6 @@ def create_azure_router(app) -> APIRouter | None:
     return router
 
 
-def _set_session(response: Response, user_id: int) -> None:
-    response.set_cookie(
-        "memlord_session",
-        make_session_token(user_id),
-        httponly=True,
-        samesite="lax",
-        secure=settings.base_url.startswith("https"),
-    )
-
-
 @router.get("/auth/azure/login")
 async def azure_login(request: Request):
     redirect_uri = settings.azure_redirect_uri
@@ -471,7 +599,7 @@ async def azure_login(request: Request):
 
 
 @router.get("/auth/azure/callback")
-async def azure_callback(request: Request, s: AsyncSession = session_dep):
+async def azure_callback(request: Request, s: APISessionDep):
     try:
         token = await _azure_oauth.azure.authorize_access_token(request)
     except Exception:
@@ -480,11 +608,11 @@ async def azure_callback(request: Request, s: AsyncSession = session_dep):
 
     userinfo = token.get("userinfo")
     if not userinfo:
-        userinfo = await _azure_oauth.azure.parse_id_token(request, token)
+        userinfo = await _azure_oauth.azure.userinfo(token=token)
 
     email = userinfo.get("email", "").strip().lower()
     if not email:
-        logger.warning("Azure SSO: no email in id_token")
+        logger.warning("Azure SSO: no email in user info")
         return RedirectResponse("/ui/login?error=azure_failed", status_code=303)
 
     sub = userinfo.get("sub", "")
@@ -504,9 +632,15 @@ async def azure_callback(request: Request, s: AsyncSession = session_dep):
         return RedirectResponse("/ui/login?error=azure_no_account", status_code=303)
 
     response = RedirectResponse("/", status_code=303)
-    _set_session(response, user.id)
+    set_session_cookie(response, user.id)
     return response
 ```
+
+Key points about the implementation:
+- Uses `APISessionDep` (project convention for UI/API routes), not raw `session_dep`
+- Uses `set_session_cookie` from `ui/utils.py` (no duplication)
+- `create_azure_router()` takes no parameters — authlib's `OAuth()` doesn't need the app reference
+- Uses `userinfo(token=token)` to fetch user info from Azure's userinfo endpoint
 
 **Step 4: Run test to verify it passes**
 
@@ -522,80 +656,41 @@ git commit -m "feat: add Azure SSO OIDC module with login and callback routes"
 
 ---
 
-### Task 6: Register Azure router in main.py
+### Task 8: Register Azure router in main.py
 
 **Files:**
 - Modify: `src/memlord/main.py:65-67`
-- Test: `tests/test_azure_sso.py` (extend)
 
-**Step 1: Write the failing test**
+**Step 1: Add the router registration**
 
-Add to `tests/test_azure_sso.py`:
-
-```python
-async def test_azure_login_route_not_registered_by_default(api_client):
-    """When Azure SSO is disabled, /auth/azure/login should not exist (falls through to MCP mount)."""
-    resp = await api_client.get("/auth/azure/login", follow_redirects=False)
-    # MCP mount returns 404 for unknown paths
-    assert resp.status_code in (404, 405)
-
-
-async def test_azure_login_route_registered_when_enabled(session, monkeypatch):
-    """When Azure SSO is enabled, /auth/azure/login should redirect to Azure."""
-    monkeypatch.setenv("MEMLORD_AZURE_SSO_ENABLED", "true")
-    monkeypatch.setenv("MEMLORD_AZURE_CLIENT_ID", "fake-client-id")
-    monkeypatch.setenv("MEMLORD_AZURE_TENANT_ID", "fake-tenant-id")
-    # Re-import settings and main to pick up env changes
-    import importlib
-    from memlord.config import settings as new_settings
-    importlib.reload(new_settings.__module__)
-
-    from memlord.main import app
-    from starlette.testclient import TestClient
-
-    client = TestClient(app)
-    resp = client.get("/auth/azure/login", follow_redirects=False)
-    assert resp.status_code in (302, 307)
-    assert "login.microsoftonline.com" in resp.headers["location"]
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `pytest tests/test_azure_sso.py -k "azure_login_route" -v`
-Expected: FAIL (the reload-based test may need adjustment — this test validates the route registration logic)
-
-**Step 3: Write the implementation**
-
-In `src/memlord/main.py`, add the Azure router registration right before the existing `app.include_router(ui_router)` line (around line 67):
+In `src/memlord/main.py`, add the Azure router registration right before the existing `app.include_router(ui_router)` line:
 
 ```python
 if settings.azure_sso_enabled and settings.azure_client_id and settings.azure_tenant_id:
     from memlord.sso import create_azure_router
-    azure_router = create_azure_router(app)
+    azure_router = create_azure_router()
     if azure_router:
         app.include_router(azure_router)
 ```
 
-**Step 4: Run test to verify it passes**
+Note: no tests needed here — `create_azure_router()` returning `None` when not configured is already tested in Task 7. Route registration is a one-line conditional that's covered by the UI template tests in Task 9.
 
-Run: `pytest tests/test_azure_sso.py -v`
-Expected: All passed
-
-**Step 5: Commit**
+**Step 2: Commit**
 
 ```bash
-git add src/memlord/main.py tests/test_azure_sso.py
+git add src/memlord/main.py
 git commit -m "feat: conditionally register Azure SSO router in main.py"
 ```
 
 ---
 
-### Task 7: Update login page template and login routes
+### Task 9: Update login page template and login routes
 
 **Files:**
 - Modify: `src/memlord/templates/login.html`
 - Modify: `src/memlord/ui/login.py:32-34` (login_get handler)
 - Modify: `src/memlord/ui/login.py:67-69` (register_get handler)
+- Modify: `src/memlord/ui/login.py:72-81` (register_post handler)
 - Test: `tests/test_azure_sso.py` (extend)
 
 **Step 1: Write the failing test**
@@ -603,7 +698,11 @@ git commit -m "feat: conditionally register Azure SSO router in main.py"
 Add to `tests/test_azure_sso.py`:
 
 ```python
-async def test_login_page_shows_azure_button_when_enabled(session, monkeypatch):
+from memlord.main import app
+from starlette.testclient import TestClient
+
+
+async def test_login_page_shows_azure_button_when_enabled(monkeypatch):
     """When Azure SSO is enabled, login page should contain Azure button."""
     monkeypatch.setattr("memlord.ui.login.settings", type("obj", (), {
         "azure_sso_enabled": True,
@@ -611,8 +710,6 @@ async def test_login_page_shows_azure_button_when_enabled(session, monkeypatch):
         "local_password_login_enabled": True,
         "local_registration_enabled": True,
     })())
-    from memlord.main import app
-    from starlette.testclient import TestClient
     client = TestClient(app)
     resp = client.get("/ui/login")
     assert resp.status_code == 200
@@ -620,7 +717,7 @@ async def test_login_page_shows_azure_button_when_enabled(session, monkeypatch):
     assert "/auth/azure/login" in resp.text
 
 
-async def test_login_page_hides_password_form_when_disabled(session, monkeypatch):
+async def test_login_page_hides_password_form_when_disabled(monkeypatch):
     """When local_password_login_enabled=False, password form should not appear."""
     monkeypatch.setattr("memlord.ui.login.settings", type("obj", (), {
         "azure_sso_enabled": True,
@@ -628,8 +725,6 @@ async def test_login_page_hides_password_form_when_disabled(session, monkeypatch
         "local_password_login_enabled": False,
         "local_registration_enabled": True,
     })())
-    from memlord.main import app
-    from starlette.testclient import TestClient
     client = TestClient(app)
     resp = client.get("/ui/login")
     assert resp.status_code == 200
@@ -637,7 +732,7 @@ async def test_login_page_hides_password_form_when_disabled(session, monkeypatch
     assert 'type="password"' not in resp.text
 
 
-async def test_login_page_hides_register_link_when_disabled(session, monkeypatch):
+async def test_login_page_hides_register_link_when_disabled(monkeypatch):
     """When local_registration_enabled=False, register link should not appear."""
     monkeypatch.setattr("memlord.ui.login.settings", type("obj", (), {
         "azure_sso_enabled": False,
@@ -645,8 +740,6 @@ async def test_login_page_hides_register_link_when_disabled(session, monkeypatch
         "local_password_login_enabled": True,
         "local_registration_enabled": False,
     })())
-    from memlord.main import app
-    from starlette.testclient import TestClient
     client = TestClient(app)
     resp = client.get("/ui/login")
     assert resp.status_code == 200
@@ -674,7 +767,7 @@ async def login_get(request: Request, next: str = "/") -> HTMLResponse:
     })
 ```
 
-Also update `register_get` to check `settings.local_registration_enabled` and redirect to login if disabled:
+Update `register_get` to check `settings.local_registration_enabled` and redirect to login if disabled:
 
 ```python
 @router.get("/register", response_class=HTMLResponse)
@@ -684,7 +777,7 @@ async def register_get(request: Request, next: str = "/") -> Response:
     return templates.TemplateResponse(request, "register.html", {"next": next})
 ```
 
-And similarly guard `register_post`:
+Add the guard at the top of `register_post` (before the `_err` function definition):
 
 ```python
 @router.post("/register")
@@ -702,9 +795,28 @@ async def register_post(
     # ... rest unchanged
 ```
 
-**3b.** Update `src/memlord/templates/login.html` — wrap the existing card content with conditionals:
+Also update `login_post` to pass the Azure toggle variables when rendering the error response (so the Azure button still shows on error):
 
-Replace the entire content inside `.login-card` with:
+In the error path of `login_post`, update the `TemplateResponse` call to include the extra variables:
+
+```python
+    if user is None:
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "next": next,
+                "error": "Incorrect email or password.",
+                "azure_sso_enabled": settings.azure_sso_enabled,
+                "azure_login_button_text": settings.azure_login_button_text,
+                "local_password_login_enabled": settings.local_password_login_enabled,
+                "local_registration_enabled": settings.local_registration_enabled,
+            },
+            status_code=401,
+        )
+```
+
+**3b.** Update `src/memlord/templates/login.html` — replace the entire content inside `.login-card` with:
 
 ```html
     <div class="login-card">
@@ -741,14 +853,19 @@ Replace the entire content inside `.login-card` with:
         {% if local_password_login_enabled and local_registration_enabled %}
         <p class="register-link">No account? <a href="/ui/register?next={{ next }}">Create one</a></p>
         {% endif %}
-        {% if not azure_sso_enabled and not local_password_login_enabled %}
-        <div class="login-heading">Sign in</div>
+        {% if request.query_params.get('error') == 'azure_failed' %}
+        <p class="error">Azure SSO authentication failed. Please try again.</p>
+        {% elif request.query_params.get('error') == 'azure_no_account' %}
+        <p class="error">Your account is not registered. Please contact your administrator.</p>
+        {% elif request.query_params.get('error') == 'azure_denied' %}
+        <p class="error">Access denied. Your email domain is not allowed.</p>
+        {% elif not azure_sso_enabled and not local_password_login_enabled %}
         <p class="error">No login method is configured. Please contact your administrator.</p>
         {% endif %}
     </div>
 ```
 
-Add CSS for the Azure button and divider (add inside the existing `<style>` block):
+Add CSS for the Azure button and divider (add inside the existing `<style>` block, before `</style>`):
 
 ```css
         .btn-azure { display: flex; align-items: center; justify-content: center; gap: 0.625rem;
@@ -771,7 +888,7 @@ Expected: 3 passed
 **Step 5: Run full test suite to ensure no regressions**
 
 Run: `pytest tests/test_dao.py tests/test_data.py tests/test_api_key.py -v`
-Expected: All passed (existing tests still pass)
+Expected: All passed
 
 **Step 6: Commit**
 
@@ -782,41 +899,7 @@ git commit -m "feat: update login page with Azure SSO button and auth toggle con
 
 ---
 
-### Task 8: Add error parameter display to login template
-
-**Files:**
-- Modify: `src/memlord/templates/login.html`
-
-**Step 1: Add error handling for Azure errors in the template**
-
-The login template already has `{% if error %}` handling (from the POST form). Add handling for query parameter errors (`azure_failed`, `azure_no_account`, `azure_denied`) passed via `?error=`. These need to be displayed even when the password form is not shown.
-
-Add this block inside `.login-card` (after the existing error handling, before the registration link):
-
-```html
-        {% if request.query_params.get('error') == 'azure_failed' %}
-        <p class="error">Azure SSO authentication failed. Please try again.</p>
-        {% elif request.query_params.get('error') == 'azure_no_account' %}
-        <p class="error">Your account is not registered. Please contact your administrator.</p>
-        {% elif request.query_params.get('error') == 'azure_denied' %}
-        <p class="error">Access denied. Your email domain is not allowed.</p>
-        {% endif %}
-```
-
-**Step 2: Verify visually**
-
-Run the server and visit `/ui/login?error=azure_failed` to confirm the error message displays correctly.
-
-**Step 3: Commit**
-
-```bash
-git add src/memlord/templates/login.html
-git commit -m "feat: add Azure SSO error messages to login page"
-```
-
----
-
-### Task 9: Run full test suite and type check
+### Task 10: Run full test suite and type check
 
 **Step 1: Run all tests**
 
