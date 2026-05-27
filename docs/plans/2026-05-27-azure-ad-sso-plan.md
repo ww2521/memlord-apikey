@@ -542,7 +542,7 @@ Create `src/memlord/sso.py`:
 import logging
 
 from authlib.integrations.starlette_client import OAuth
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from memlord.config import settings
@@ -640,7 +640,7 @@ Key points about the implementation:
 - Uses `APISessionDep` (project convention for UI/API routes), not raw `session_dep`
 - Uses `set_session_cookie` from `ui/utils.py` (no duplication)
 - `create_azure_router()` takes no parameters — authlib's `OAuth()` doesn't need the app reference
-- Uses `userinfo(token=token)` to fetch user info from Azure's userinfo endpoint
+- Uses `token.get("userinfo")` first (authlib populates this from id_token during OIDC flow), falls back to `userinfo(token=token)` to fetch from Azure's userinfo endpoint if missing
 
 **Step 4: Run test to verify it passes**
 
@@ -730,6 +730,20 @@ async def test_login_page_hides_password_form_when_disabled(monkeypatch):
     assert resp.status_code == 200
     assert "SSO" in resp.text
     assert 'type="password"' not in resp.text
+
+
+async def test_register_page_redirects_when_disabled(monkeypatch):
+    """When local_registration_enabled=False, GET /ui/register should redirect to login."""
+    monkeypatch.setattr("memlord.ui.login.settings", type("obj", (), {
+        "azure_sso_enabled": False,
+        "azure_login_button_text": "SSO",
+        "local_password_login_enabled": True,
+        "local_registration_enabled": False,
+    })())
+    client = TestClient(app)
+    resp = client.get("/ui/register", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "/ui/login" in resp.headers["location"]
 
 
 async def test_login_page_hides_register_link_when_disabled(monkeypatch):
@@ -883,7 +897,7 @@ Add CSS for the Azure button and divider (add inside the existing `<style>` bloc
 **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/test_azure_sso.py -k "login_page" -v`
-Expected: 3 passed
+Expected: 4 passed
 
 **Step 5: Run full test suite to ensure no regressions**
 
