@@ -1,6 +1,18 @@
+from fastapi import Response
+
 from memlord.config import Settings
 from memlord.dao.user import UserDao
 from memlord.models.user import User
+from memlord.ui.utils import set_session_cookie
+
+
+def test_set_session_cookie_sets_cookie():
+    """set_session_cookie should set memlord_session cookie."""
+    response = Response()
+    set_session_cookie(response, 42)
+    cookie = response.headers.get("set-cookie", "")
+    assert "memlord_session" in cookie
+    assert "HttpOnly" in cookie
 
 
 def test_azure_sso_defaults():

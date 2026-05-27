@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import Annotated, NoReturn
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Response
 from starlette import status
 from starlette.templating import Jinja2Templates
 
@@ -25,6 +25,17 @@ def make_session_token(user_id: int) -> str:
     body = f"{user_id}:{ts}"
     sig = hmac.new(settings.oauth_jwt_secret.encode(), body.encode(), hashlib.sha256).hexdigest()
     return f"{body}:{sig}"
+
+
+def set_session_cookie(response: Response, user_id: int) -> None:
+    """Set the memlord_session cookie on the response."""
+    response.set_cookie(
+        "memlord_session",
+        make_session_token(user_id),
+        httponly=True,
+        samesite="lax",
+        secure=settings.base_url.startswith("https"),
+    )
 
 
 def _require_auth(request: Request) -> int:
@@ -81,4 +92,4 @@ async def get_current_user(
 
 APIUserDep = Annotated[UserInfo, Depends(get_current_user)]
 
-__all__ = ["APIUserDep", "make_session_token", "templates"]
+__all__ = ["APIUserDep", "make_session_token", "set_session_cookie", "templates"]

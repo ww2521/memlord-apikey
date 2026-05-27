@@ -10,23 +10,13 @@ from memlord.db import APISessionDep
 from memlord.models.email_token import TokenPurpose
 from memlord.utils.mail_send import send_email
 
-from .utils import APIUserDep, make_session_token, templates
+from .utils import APIUserDep, set_session_cookie, templates
 
 router = APIRouter()
 
 
 def _safe_redirect(next: str) -> str:
     return next if (next.startswith("/") and not next.startswith("//")) else "/"
-
-
-def _set_session(response: Response, user_id: int) -> None:
-    response.set_cookie(
-        "memlord_session",
-        make_session_token(user_id),
-        httponly=True,
-        samesite="lax",
-        secure=settings.base_url.startswith("https"),
-    )
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -53,7 +43,7 @@ async def login_post(
         )
 
     response = RedirectResponse(_safe_redirect(next), status_code=303)
-    _set_session(response, user.id)
+    set_session_cookie(response, user.id)
     return response
 
 
@@ -110,7 +100,7 @@ async def register_post(
         )
 
     response = RedirectResponse(_safe_redirect(next), status_code=303)
-    _set_session(response, user.id)
+    set_session_cookie(response, user.id)
     return response
 
 
