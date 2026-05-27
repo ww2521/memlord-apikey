@@ -113,3 +113,23 @@ def test_session_middleware_installed():
 
     middlewares = [m.cls for m in app.user_middleware]
     assert SessionMiddleware in middlewares
+
+
+def test_create_azure_router_returns_none_when_not_configured():
+    """When azure SSO is not configured, create_azure_router returns None."""
+    from memlord.sso import create_azure_router
+    result = create_azure_router()
+    assert result is None
+
+
+def test_email_domain_allowed():
+    """Test the _is_email_allowed helper."""
+    from memlord.sso import _is_email_allowed
+    # No whitelist = allow all
+    assert _is_email_allowed("user@any.com", None) is True
+    # Matching domain
+    assert _is_email_allowed("user@company.com", ["company.com"]) is True
+    # Non-matching domain
+    assert _is_email_allowed("user@other.com", ["company.com"]) is False
+    # Multiple domains
+    assert _is_email_allowed("user@sub.com", ["company.com", "sub.com"]) is True
