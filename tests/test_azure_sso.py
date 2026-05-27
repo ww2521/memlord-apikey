@@ -103,3 +103,13 @@ async def test_get_or_create_by_email_for_sso_auto_register_false(session):
         auto_register=False,
     )
     assert result is None
+
+
+def test_session_middleware_installed():
+    """SessionMiddleware must be present for authlib OAuth state management."""
+    from starlette.middleware.sessions import SessionMiddleware
+
+    from memlord.main import app
+
+    middlewares = [m.cls for m in app.user_middleware]
+    assert SessionMiddleware in middlewares

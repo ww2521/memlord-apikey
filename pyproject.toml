@@ -22,6 +22,7 @@ dependencies = [
     "email-validator>=2.3.0",
     "bcrypt>=5.0.0",
     "aiosmtplib>=5.1.0",
+    "itsdangerous>=2.2.0",
 ]
 
 [project.scripts]

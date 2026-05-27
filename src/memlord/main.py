@@ -9,6 +9,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from starlette import status
+from starlette.middleware.sessions import SessionMiddleware
 
 from memlord.api import router as api_router
 from memlord.config import settings
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Memlord", lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key=settings.oauth_jwt_secret)
 
 
 @app.exception_handler(PermissionError)
