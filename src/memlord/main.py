@@ -66,6 +66,13 @@ async def health() -> JSONResponse:
 
 # UI and API routes must be registered BEFORE the root mount so they take priority.
 app.include_router(api_router)
+
+if settings.azure_sso_enabled and settings.azure_client_id and settings.azure_tenant_id:
+    from memlord.sso import create_azure_router
+    azure_router = create_azure_router()
+    if azure_router:
+        app.include_router(azure_router)
+
 app.include_router(ui_router)
 # Mount mcp_app at "/" so that OAuth /.well-known/* endpoints are at the root,
 # matching what MCP clients expect.  The MCP transport itself is at /mcp.
