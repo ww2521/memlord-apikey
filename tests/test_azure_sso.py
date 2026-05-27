@@ -1,6 +1,5 @@
-import sqlalchemy as sa
-
 from memlord.config import Settings
+from memlord.dao.user import UserDao
 from memlord.models.user import User
 
 
@@ -52,3 +51,43 @@ def test_user_model_has_azure_columns():
 
 def test_user_model_hashed_password_nullable():
     assert User.hashed_password.property.columns[0].nullable is True
+
+
+async def test_get_or_create_by_email_for_sso_existing_user(session):
+    """Existing user should be returned and azure_sub updated."""
+    user = await UserDao(session).create(
+        email="existing@test.com",
+        display_name="Existing User",
+        hashed_password="hashed",
+    )
+    result = await UserDao(session).get_or_create_by_email_for_sso(
+        email="existing@test.com",
+        display_name="Existing User",
+        azure_sub="azure-sub-123",
+    )
+    assert result.id == user.id
+    assert result.email == "existing@test.com"
+    assert result.display_name == "Existing User"
+
+
+async def test_get_or_create_by_email_for_sso_new_user(session):
+    """New user should be auto-created with azure fields set."""
+    result = await UserDao(session).get_or_create_by_email_for_sso(
+        email="new@test.com",
+        display_name="New SSO User",
+        azure_sub="azure-sub-456",
+    )
+    assert result.id is not None
+    assert result.email == "new@test.com"
+    assert result.display_name == "New SSO User"
+
+
+async def test_get_or_create_by_email_for_sso_auto_register_false(session):
+    """When auto_register=False and user doesn't exist, return None."""
+    result = await UserDao(session).get_or_create_by_email_for_sso(
+        email="unknown@test.com",
+        display_name="Unknown",
+        azure_sub="azure-sub-789",
+        auto_register=False,
+    )
+    assert result is None

@@ -93,3 +93,59 @@ class UserDao:
             email=email.strip().lower(),
             email_verified=False,
         )
+
+    async def get_or_create_by_email_for_sso(
+        self,
+        email: str,
+        display_name: str,
+        azure_sub: str,
+        auto_register: bool = True,
+    ) -> UserInfo | None:
+        email = email.strip().lower()
+        row = (
+            (
+                await self._s.execute(
+                    select(
+                        User.id,
+                        User.display_name,
+                        User.email,
+                        User.email_verified,
+                        User.azure_sub,
+                    ).where(User.email == email)
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is not None:
+            if row["azure_sub"] is None:
+                await self._s.execute(
+                    update(User).where(User.id == row["id"]).values(azure_sub=azure_sub)
+                )
+            return UserInfo(
+                id=row["id"],
+                display_name=row["display_name"],
+                email=row["email"],
+                email_verified=row["email_verified"],
+            )
+        if not auto_register:
+            return None
+        user_id = await self._s.scalar(
+            insert(User)
+            .values(
+                email=email,
+                display_name=display_name.strip(),
+                hashed_password=None,
+                azure_sub=azure_sub,
+                auth_method="azure_sso",
+            )
+            .returning(User.id)
+        )
+        assert user_id is not None
+        await WorkspaceDao(self._s, user_id).create_personal()
+        return UserInfo(
+            id=user_id,
+            display_name=display_name.strip(),
+            email=email,
+            email_verified=False,
+        )
