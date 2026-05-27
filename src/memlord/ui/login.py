@@ -21,7 +21,13 @@ def _safe_redirect(next: str) -> str:
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_get(request: Request, next: str = "/") -> HTMLResponse:
-    return templates.TemplateResponse(request, "login.html", {"next": next})
+    return templates.TemplateResponse(request, "login.html", {
+        "next": next,
+        "azure_sso_enabled": settings.azure_sso_enabled,
+        "azure_login_button_text": settings.azure_login_button_text,
+        "local_password_login_enabled": settings.local_password_login_enabled,
+        "local_registration_enabled": settings.local_registration_enabled,
+    })
 
 
 @router.post("/login")
@@ -38,7 +44,14 @@ async def login_post(
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"next": next, "error": "Incorrect email or password."},
+            {
+                "next": next,
+                "error": "Incorrect email or password.",
+                "azure_sso_enabled": settings.azure_sso_enabled,
+                "azure_login_button_text": settings.azure_login_button_text,
+                "local_password_login_enabled": settings.local_password_login_enabled,
+                "local_registration_enabled": settings.local_registration_enabled,
+            },
             status_code=401,
         )
 
@@ -55,7 +68,9 @@ async def logout() -> Response:
 
 
 @router.get("/register", response_class=HTMLResponse)
-async def register_get(request: Request, next: str = "/") -> HTMLResponse:
+async def register_get(request: Request, next: str = "/") -> Response:
+    if not settings.local_registration_enabled:
+        return RedirectResponse("/ui/login", status_code=303)
     return templates.TemplateResponse(request, "register.html", {"next": next})
 
 
@@ -69,6 +84,9 @@ async def register_post(
     password2: str = Form(min_length=6),
     next: str = Form(default="/"),
 ) -> Response:
+    if not settings.local_registration_enabled:
+        return RedirectResponse("/ui/login", status_code=303)
+
     def _err(msg: str) -> HTMLResponse:
         return templates.TemplateResponse(
             request,

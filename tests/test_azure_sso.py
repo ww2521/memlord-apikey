@@ -133,3 +133,69 @@ def test_email_domain_allowed():
     assert _is_email_allowed("user@other.com", ["company.com"]) is False
     # Multiple domains
     assert _is_email_allowed("user@sub.com", ["company.com", "sub.com"]) is True
+
+
+async def test_login_page_shows_azure_button_when_enabled(monkeypatch):
+    """When Azure SSO is enabled, login page should contain Azure button."""
+    monkeypatch.setattr("memlord.ui.login.settings", type("obj", (), {
+        "azure_sso_enabled": True,
+        "azure_login_button_text": "Sign in with Azure AD",
+        "local_password_login_enabled": True,
+        "local_registration_enabled": True,
+    })())
+    from memlord.main import app
+    from starlette.testclient import TestClient
+    client = TestClient(app)
+    resp = client.get("/ui/login")
+    assert resp.status_code == 200
+    assert "Sign in with Azure AD" in resp.text
+    assert "/auth/azure/login" in resp.text
+
+
+async def test_login_page_hides_password_form_when_disabled(monkeypatch):
+    """When local_password_login_enabled=False, password form should not appear."""
+    monkeypatch.setattr("memlord.ui.login.settings", type("obj", (), {
+        "azure_sso_enabled": True,
+        "azure_login_button_text": "SSO",
+        "local_password_login_enabled": False,
+        "local_registration_enabled": True,
+    })())
+    from memlord.main import app
+    from starlette.testclient import TestClient
+    client = TestClient(app)
+    resp = client.get("/ui/login")
+    assert resp.status_code == 200
+    assert "SSO" in resp.text
+    assert '<input type="password"' not in resp.text
+
+
+async def test_register_page_redirects_when_disabled(monkeypatch):
+    """When local_registration_enabled=False, GET /ui/register should redirect to login."""
+    monkeypatch.setattr("memlord.ui.login.settings", type("obj", (), {
+        "azure_sso_enabled": False,
+        "azure_login_button_text": "SSO",
+        "local_password_login_enabled": True,
+        "local_registration_enabled": False,
+    })())
+    from memlord.main import app
+    from starlette.testclient import TestClient
+    client = TestClient(app)
+    resp = client.get("/ui/register", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "/ui/login" in resp.headers["location"]
+
+
+async def test_login_page_hides_register_link_when_disabled(monkeypatch):
+    """When local_registration_enabled=False, register link should not appear."""
+    monkeypatch.setattr("memlord.ui.login.settings", type("obj", (), {
+        "azure_sso_enabled": False,
+        "azure_login_button_text": "SSO",
+        "local_password_login_enabled": True,
+        "local_registration_enabled": False,
+    })())
+    from memlord.main import app
+    from starlette.testclient import TestClient
+    client = TestClient(app)
+    resp = client.get("/ui/login")
+    assert resp.status_code == 200
+    assert "Create one" not in resp.text
