@@ -1,4 +1,7 @@
+import sqlalchemy as sa
+
 from memlord.config import Settings
+from memlord.models.user import User
 
 
 def test_azure_sso_defaults():
@@ -40,3 +43,12 @@ def test_azure_sso_from_env(monkeypatch):
     assert s.azure_auto_register is False
     assert s.local_password_login_enabled is False
     assert s.local_registration_enabled is False
+
+
+def test_user_model_has_azure_columns():
+    assert hasattr(User, "azure_sub")
+    assert hasattr(User, "auth_method")
+
+
+def test_user_model_hashed_password_nullable():
+    assert User.hashed_password.property.columns[0].nullable is True
