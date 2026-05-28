@@ -6,7 +6,7 @@ from pathlib import Path
 
 import sqlalchemy as sa
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from starlette import status
 from starlette.middleware.sessions import SessionMiddleware
@@ -16,8 +16,12 @@ from memlord.config import settings
 from memlord.db import session
 from memlord.server import mcp
 from memlord.ui import router as ui_router
+from memlord.ui.utils import templates
 
 mcp_app = mcp.http_app(path="/mcp")
+
+root_prefix = settings.root_path.rstrip("/")
+templates.env.globals["root_path"] = root_prefix
 
 
 @asynccontextmanager
@@ -40,18 +44,20 @@ async def permission_error_handler(request: Request, exc: PermissionError) -> JS
 
 _TEMPLATES = Path(__file__).parent / "templates"
 
+root_router = APIRouter(prefix=root_prefix)
 
-@app.get("/favicon.png", include_in_schema=False)
+
+@root_router.get("/favicon.png", include_in_schema=False)
 async def favicon_png() -> FileResponse:
     return FileResponse(_TEMPLATES / "icon.png", media_type="image/png")
 
 
-@app.get("/favicon.svg", include_in_schema=False)
+@root_router.get("/favicon.svg", include_in_schema=False)
 async def favicon_svg() -> FileResponse:
     return FileResponse(_TEMPLATES / "icon.svg", media_type="image/svg+xml")
 
 
-@app.get("/health")
+@root_router.get("/health")
 async def health() -> JSONResponse:
     try:
         async with session() as s:
@@ -65,18 +71,19 @@ async def health() -> JSONResponse:
 
 
 # UI and API routes must be registered BEFORE the root mount so they take priority.
-app.include_router(api_router)
+root_router.include_router(api_router)
 
 if settings.azure_sso_enabled and settings.azure_client_id and settings.azure_tenant_id:
     from memlord.sso import create_azure_router
     azure_router = create_azure_router()
     if azure_router:
-        app.include_router(azure_router)
+        root_router.include_router(azure_router)
 
-app.include_router(ui_router)
-# Mount mcp_app at "/" so that OAuth /.well-known/* endpoints are at the root,
+root_router.include_router(ui_router)
+app.include_router(root_router)
+# Mount mcp_app so that OAuth /.well-known/* endpoints are at the root_prefix,
 # matching what MCP clients expect.  The MCP transport itself is at /mcp.
-app.mount("/", mcp_app)
+app.mount(f"{root_prefix}/", mcp_app)
 
 
 def main():
