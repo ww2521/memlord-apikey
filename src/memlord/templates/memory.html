@@ -5,7 +5,7 @@
 <div x-data="memoryPage({{ workspace_id }}, {{ memory_id }})" x-init="init()">
 
     <div class="breadcrumb">
-        <a href="/" class="btn btn-ghost btn-sm">← All memories</a>
+        <a href="{{ root_path }}/" class="btn btn-ghost btn-sm">← All memories</a>
     </div>
 
     <div x-show="loading" style="text-align:center;padding:3rem;color:var(--text-4)">Loading…</div>
@@ -34,7 +34,7 @@
                         <span class="badge badge-type" x-text="memory.memory_type"></span>
                     </template>
                     <template x-for="t in memory.tags" :key="t">
-                        <a :href="'/?tag=' + t" class="tag" x-text="'#' + t"></a>
+                        <a :href="rootPath + '/?tag=' + t" class="tag" x-text="'#' + t"></a>
                     </template>
                     <span class="card-date" style="margin-left:auto" x-text="memory.created_at"></span>
                 </div>
@@ -112,7 +112,7 @@ function memoryPage(workspaceId, memoryId) {
         moveTarget: null,
 
         async init() {
-            const r = await fetch('/api/memories/' + workspaceId + '/' + memoryId);
+            const r = await fetch(rootPath + '/api/memories/' + workspaceId + '/' + memoryId);
             if (!r.ok) { this.loading = false; return; }
             this.memory = await r.json();
             this.editName = this.memory.name;
@@ -133,7 +133,7 @@ function memoryPage(workspaceId, memoryId) {
                 catch { this.errorMsg = 'Invalid JSON in metadata field.'; return; }
             }
             const tags = this.editTags ? this.editTags.split(',').map(t => t.trim()).filter(Boolean) : [];
-            const r = await fetch('/api/memories/' + this.memory.workspace_id + '/' + this.memory.id, {
+            const r = await fetch(rootPath + '/api/memories/' + this.memory.workspace_id + '/' + this.memory.id, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: this.editName, content: this.editContent, memory_type: this.editType, tags, metadata }),
@@ -150,7 +150,7 @@ function memoryPage(workspaceId, memoryId) {
         },
 
         async moveMemory() {
-            const r = await fetch('/api/memories/' + this.memory.workspace_id + '/' + this.memory.id + '/move', {
+            const r = await fetch(rootPath + '/api/memories/' + this.memory.workspace_id + '/' + this.memory.id + '/move', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ to_workspace_id: parseInt(this.moveTarget) }),
@@ -167,8 +167,8 @@ function memoryPage(workspaceId, memoryId) {
 
         async deleteMemory() {
             if (!confirm('Delete this memory?')) return;
-            const r = await fetch('/api/memories/' + this.memory.workspace_id + '/' + this.memory.id, { method: 'DELETE' });
-            if (r.ok) window.location.href = '/';
+            const r = await fetch(rootPath + '/api/memories/' + this.memory.workspace_id + '/' + this.memory.id, { method: 'DELETE' });
+            if (r.ok) window.location.href = rootPath + '/';
         },
     };
 }
