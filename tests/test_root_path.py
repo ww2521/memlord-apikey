@@ -77,3 +77,10 @@ def test_set_session_cookie_path_default():
         set_session_cookie(resp, 1)
         cookie_header = resp.headers.get("set-cookie", "")
         assert "; Path=/" in cookie_header
+
+
+def test_root_path_in_jinja_globals():
+    """Templates should have root_path available as a Jinja global."""
+    from memlord.main import app
+    from memlord.ui.utils import templates
+    assert "root_path" in templates.env.globals
