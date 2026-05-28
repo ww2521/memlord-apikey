@@ -46,15 +46,15 @@
         <div class="heading">Email verified</div>
         <div class="sub">Your email address has been confirmed.</div>
         <div class="success">All done! Your account is fully verified.</div>
-        <a href="/" class="link">Go to Memlord →</a>
+        <a href="{{ root_path }}/" class="link">Go to Memlord →</a>
         {% elif error %}
         <div class="heading">Verification failed</div>
         <div class="error">{{ error }}</div>
-        <a href="/" class="link">Back to home</a>
+        <a href="{{ root_path }}/" class="link">Back to home</a>
         {% else %}
         <div class="heading">Email verification</div>
         <div class="sub">Check your inbox for a verification link.</div>
-        <a href="/" class="link">Back to home</a>
+        <a href="{{ root_path }}/" class="link">Back to home</a>
         {% endif %}
     </div>
 </div>
