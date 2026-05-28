@@ -16,6 +16,10 @@ _azure_oauth = OAuth()
 router = APIRouter()
 
 
+def _rp() -> str:
+    return settings.root_path.rstrip("/")
+
+
 def _is_email_allowed(email: str, allowed_domains: list[str] | None) -> bool:
     if not allowed_domains:
         return True
@@ -63,7 +67,7 @@ async def azure_callback(request: Request, s: APISessionDep):
         token = await _azure_oauth.azure.authorize_access_token(request)
     except Exception:
         logger.warning("Azure SSO: token exchange failed", exc_info=True)
-        return RedirectResponse("/ui/login?error=azure_failed", status_code=303)
+        return RedirectResponse(f"{_rp()}/ui/login?error=azure_failed", status_code=303)
 
     userinfo = token.get("userinfo")
     if not userinfo:
@@ -72,13 +76,13 @@ async def azure_callback(request: Request, s: APISessionDep):
     email = userinfo.get("email", "").strip().lower()
     if not email:
         logger.warning("Azure SSO: no email in user info")
-        return RedirectResponse("/ui/login?error=azure_failed", status_code=303)
+        return RedirectResponse(f"{_rp()}/ui/login?error=azure_failed", status_code=303)
 
     sub = userinfo.get("sub", "")
     name = userinfo.get("name", email)
 
     if not _is_email_allowed(email, settings.azure_allowed_email_domains):
-        return RedirectResponse("/ui/login?error=azure_denied", status_code=303)
+        return RedirectResponse(f"{_rp()}/ui/login?error=azure_denied", status_code=303)
 
     user = await UserDao(s).get_or_create_by_email_for_sso(
         email=email,
@@ -88,8 +92,8 @@ async def azure_callback(request: Request, s: APISessionDep):
     )
 
     if user is None:
-        return RedirectResponse("/ui/login?error=azure_no_account", status_code=303)
+        return RedirectResponse(f"{_rp()}/ui/login?error=azure_no_account", status_code=303)
 
-    response = RedirectResponse("/", status_code=303)
+    response = RedirectResponse(f"{_rp()}/", status_code=303)
     set_session_cookie(response, user.id)
     return response
