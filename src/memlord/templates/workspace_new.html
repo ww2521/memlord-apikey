@@ -3,7 +3,7 @@
 {% block content %}
 
 <div class="breadcrumb">
-    <a href="/ui/workspaces" class="btn btn-ghost btn-sm">← Workspaces</a>
+    <a href="{{ root_path }}/ui/workspaces" class="btn btn-ghost btn-sm">← Workspaces</a>
 </div>
 
 <div class="detail-card" style="max-width:480px" x-data="newWorkspacePage()">
@@ -29,7 +29,7 @@
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Create</button>
-            <a href="/ui/workspaces" class="btn btn-ghost">Cancel</a>
+            <a href="{{ root_path }}/ui/workspaces" class="btn btn-ghost">Cancel</a>
         </div>
     </form>
 </div>
@@ -43,14 +43,14 @@ function newWorkspacePage() {
 
         async submit() {
             this.error = '';
-            const r = await fetch('/api/workspaces', {
+            const r = await fetch(rootPath + '/api/workspaces', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: this.name.trim(), description: this.description.trim() || null }),
             });
             if (r.ok) {
                 const ws = await r.json();
-                window.location.href = '/ui/workspaces/' + ws.id;
+                window.location.href = rootPath + '/ui/workspaces/' + ws.id;
             } else {
                 const e = await r.json();
                 this.error = e.detail || 'Failed to create workspace.';

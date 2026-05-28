@@ -6,7 +6,7 @@
 
     <div class="page-header">
         <h1 class="page-title">Workspaces</h1>
-        <a href="/ui/workspaces/new" class="btn btn-primary btn-sm">+ New workspace</a>
+        <a href="{{ root_path }}/ui/workspaces/new" class="btn btn-primary btn-sm">+ New workspace</a>
     </div>
 
     <div x-show="loading" style="text-align:center;padding:3rem;color:var(--text-4)">Loading…</div>
@@ -14,7 +14,7 @@
     <template x-for="ws in workspaces" :key="ws.id">
         <div class="card">
             <div class="card-header">
-                <a :href="'/ui/workspaces/' + ws.id" style="flex:1;min-width:0;color:inherit;text-decoration:none;">
+                <a :href="rootPath + '/ui/workspaces/' + ws.id" style="flex:1;min-width:0;color:inherit;text-decoration:none;">
                     <div style="font-weight:600;font-size:.9375rem" x-text="ws.is_personal ? 'Personal' : ws.name"></div>
                 </a>
                 <span class="badge badge-type" x-text="ws.role"></span>
@@ -48,7 +48,7 @@ function workspacesPage() {
         loading: true,
 
         async init() {
-            const r = await fetch('/api/workspaces');
+            const r = await fetch(rootPath + '/api/workspaces');
             const data = await r.json();
             this.workspaces = data.sort((a, b) => b.is_personal - a.is_personal);
             this.loading = false;
