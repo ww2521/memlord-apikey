@@ -9,7 +9,7 @@
     <div class="alert alert-error" style="margin-top:1rem">
         This invite link has already been used.
     </div>
-    <a href="/ui/workspaces" class="btn btn-ghost btn-sm" style="margin-top:.75rem">My workspaces</a>
+    <a href="{{ root_path }}/ui/workspaces" class="btn btn-ghost btn-sm" style="margin-top:.75rem">My workspaces</a>
     {% else %}
     <p style="font-size:.875rem;color:var(--text-3);margin:1rem 0">
         <strong>{{ inviter_name }}</strong> invited you to join
@@ -20,7 +20,7 @@
         <div x-show="error" class="alert alert-error" x-text="error" style="margin-bottom:.75rem"></div>
         <div class="form-actions">
             <button class="btn btn-primary" @click="accept()">Accept invitation</button>
-            <a href="/" class="btn btn-ghost">Decline</a>
+            <a href="{{ root_path }}/" class="btn btn-ghost">Decline</a>
         </div>
     </div>
     <script>
@@ -28,9 +28,9 @@
         return {
             error: '',
             async accept() {
-                const r = await fetch('/api/workspaces/join/' + token, { method: 'POST' });
+                const r = await fetch(rootPath + '/api/workspaces/join/' + token, { method: 'POST' });
                 if (r.ok) {
-                    window.location.href = '/ui/workspaces/' + (await r.json()).id;
+                    window.location.href = rootPath + '/ui/workspaces/' + (await r.json()).id;
                 } else {
                     this.error = (await r.json()).detail;
                 }
