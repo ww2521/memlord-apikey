@@ -88,7 +88,7 @@ function settingsPage() {
         },
 
         async loadKeys() {
-            const r = await fetch('/ui/settings/api-keys');
+            const r = await fetch(rootPath + '/ui/settings/api-keys');
             this.keys = await r.json();
             this.loading = false;
         },
@@ -99,7 +99,7 @@ function settingsPage() {
             this.creating = true;
             try {
                 const body = new URLSearchParams({ name: this.newKeyName });
-                const r = await fetch('/ui/settings/api-keys', { method: 'POST', body });
+                const r = await fetch(rootPath + '/ui/settings/api-keys', { method: 'POST', body });
                 if (!r.ok) {
                     const data = await r.json();
                     throw new Error(data.detail || 'Failed to create key');
@@ -117,7 +117,7 @@ function settingsPage() {
 
         async revokeKey(id, name) {
             if (!confirm(`Revoke "${name}"? This action cannot be undone.`)) return;
-            await fetch(`/ui/settings/api-keys/${id}`, { method: 'DELETE' });
+            await fetch(`${rootPath}/ui/settings/api-keys/${id}`, { method: 'DELETE' });
             await this.loadKeys();
         },
 
