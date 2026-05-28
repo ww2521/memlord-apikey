@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Memlord — Sign in</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="{{ root_path }}/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -63,7 +63,7 @@
     </div>
     <div class="login-card">
         {% if azure_sso_enabled %}
-        <a href="/auth/azure/login" class="btn-azure">
+        <a href="{{ root_path }}/auth/azure/login" class="btn-azure">
             <svg width="20" height="20" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 0h11v11H0zM12 0h11v11H12zM0 12h11v11H0zM12 12h11v11H12z" fill="#f25022"/>
             </svg>
@@ -76,7 +76,7 @@
         {% if local_password_login_enabled %}
         <div class="login-heading">Sign in</div>
         <div class="login-subheading">Enter your email and password to continue.</div>
-        <form method="post" action="/ui/login">
+        <form method="post" action="{{ root_path }}/ui/login">
             <input type="hidden" name="next" value="{{ next }}">
             <div class="form-group">
                 <label for="email">Email</label>
@@ -90,10 +90,10 @@
             {% if error %}<p class="error">{{ error }}</p>{% endif %}
             {% if request.query_params.get('reset') %}<p style="margin-top:.875rem;padding:.625rem .875rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;color:#16a34a;font-size:.8125rem;">Password updated — you can now sign in.</p>{% endif %}
         </form>
-        {% if smtp_configured %}<p class="register-link" style="margin-top:.625rem;"><a href="/ui/forgot-password" style="color:#8b8fa8;font-size:.8125rem;">Forgot password?</a></p>{% endif %}
+        {% if smtp_configured %}<p class="register-link" style="margin-top:.625rem;"><a href="{{ root_path }}/ui/forgot-password" style="color:#8b8fa8;font-size:.8125rem;">Forgot password?</a></p>{% endif %}
         {% endif %}
         {% if local_password_login_enabled and local_registration_enabled %}
-        <p class="register-link">No account? <a href="/ui/register?next={{ next }}">Create one</a></p>
+        <p class="register-link">No account? <a href="{{ root_path }}/ui/register?next={{ next }}">Create one</a></p>
         {% endif %}
         {% if request.query_params.get('error') == 'azure_failed' %}
         <p class="error">Azure SSO authentication failed. Please try again.</p>
