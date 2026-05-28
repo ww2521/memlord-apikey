@@ -54,7 +54,7 @@
     <div class="login-card">
         <div class="login-heading">Create account</div>
         <div class="login-subheading">Fill in the details below to get started.</div>
-        <form method="post" action="/ui/register">
+        <form method="post" action="{{ root_path }}/ui/register">
             <input type="hidden" name="next" value="{{ next }}">
             <div class="form-group">
                 <label for="email">Email</label>
@@ -79,7 +79,7 @@
             <button type="submit" class="btn-submit">Create account</button>
             {% if error %}<p class="error">{{ error }}</p>{% endif %}
         </form>
-        <p class="signin-link">Already have an account? <a href="/ui/login?next={{ next }}">Sign in</a></p>
+        <p class="signin-link">Already have an account? <a href="{{ root_path }}/ui/login?next={{ next }}">Sign in</a></p>
     </div>
 </div>
 </body>
