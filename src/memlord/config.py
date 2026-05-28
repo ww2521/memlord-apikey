@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     base_url: str = "http://localhost:8000"
+    root_path: str = ""
     rrf_k: int = 60
     default_limit: int = 10
     sim_threshold: float = Field(0.25, ge=0.0, le=1.0)
@@ -43,6 +44,23 @@ class Settings(BaseSettings):
     def _parse_domains(cls, v):
         if isinstance(v, str):
             return [d.strip() for d in v.split(",") if d.strip()]
+        return v
+
+    @field_validator("root_path")
+    @classmethod
+    def _validate_root_path(cls, v: str, info) -> str:
+        if v and info.data.get("base_url"):
+            from urllib.parse import urlparse
+
+            base = info.data["base_url"].rstrip("/")
+            parsed = urlparse(base)
+            base_path = parsed.path or ""
+            if base_path:
+                prefix = v.rstrip("/")
+                if not base_path.endswith(prefix):
+                    raise ValueError(
+                        f"base_url '{info.data['base_url']}' must end with root_path '{v}'"
+                    )
         return v
 
     azure_auto_register: bool = True
