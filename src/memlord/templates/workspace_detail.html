@@ -5,7 +5,7 @@
 <div x-data="workspaceDetailPage({{ workspace_id }})" x-init="init()">
 
     <div class="breadcrumb">
-        <a href="/ui/workspaces" class="btn btn-ghost btn-sm">← Workspaces</a>
+        <a href="{{ root_path }}/ui/workspaces" class="btn btn-ghost btn-sm">← Workspaces</a>
     </div>
 
     <div x-show="loading" style="text-align:center;padding:3rem;color:var(--text-4)">Loading…</div>
@@ -79,7 +79,7 @@
                     Export all memories in this workspace as JSON, or import memories from a JSON file.
                 </p>
                 <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-                    <a :href="'/api/workspaces/' + ws.id + '/export'" class="btn btn-ghost btn-sm">Export JSON</a>
+                    <a :href="rootPath + '/api/workspaces/' + ws.id + '/export'" class="btn btn-ghost btn-sm">Export JSON</a>
                     <template x-if="ws.role === 'owner' || ws.role === 'editor'">
                         <label class="btn btn-ghost btn-sm" style="cursor:pointer">
                             Import JSON
@@ -151,7 +151,7 @@ function workspaceDetailPage(workspaceId) {
         importResult: null,
 
         async init() {
-            const r = await fetch('/api/workspaces/' + workspaceId);
+            const r = await fetch(rootPath + '/api/workspaces/' + workspaceId);
             if (!r.ok) { this.loading = false; return; }
             const data = await r.json();
             this.ws = data.workspace;
@@ -162,7 +162,7 @@ function workspaceDetailPage(workspaceId) {
         },
 
         async rename() {
-            const r = await fetch('/api/workspaces/' + workspaceId + '/rename', {
+            const r = await fetch(rootPath + '/api/workspaces/' + workspaceId + '/rename', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: this.editName }),
@@ -172,7 +172,7 @@ function workspaceDetailPage(workspaceId) {
         },
 
         async saveDescription() {
-            const r = await fetch('/api/workspaces/' + workspaceId + '/description', {
+            const r = await fetch(rootPath + '/api/workspaces/' + workspaceId + '/description', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ description: this.editDescription || null }),
@@ -182,7 +182,7 @@ function workspaceDetailPage(workspaceId) {
         },
 
         async generateInvite() {
-            const r = await fetch('/api/workspaces/' + workspaceId + '/invite', {
+            const r = await fetch(rootPath + '/api/workspaces/' + workspaceId + '/invite', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: this.inviteRole, expires_in_hours: 72 }),
@@ -200,8 +200,8 @@ function workspaceDetailPage(workspaceId) {
 
         async deleteWorkspace() {
             if (!confirm('Delete workspace "' + this.ws.name + '"? This cannot be undone.')) return;
-            const r = await fetch('/api/workspaces/' + workspaceId, { method: 'DELETE' });
-            if (r.ok) window.location.href = '/ui/workspaces';
+            const r = await fetch(rootPath + '/api/workspaces/' + workspaceId, { method: 'DELETE' });
+            if (r.ok) window.location.href = rootPath + '/ui/workspaces';
             else { const e = await r.json(); this.errorMsg = e.detail; }
         },
 
@@ -210,7 +210,7 @@ function workspaceDetailPage(workspaceId) {
             if (!file) return;
             const fd = new FormData();
             fd.append('file', file);
-            const r = await fetch('/api/workspaces/' + workspaceId + '/import', { method: 'POST', body: fd });
+            const r = await fetch(rootPath + '/api/workspaces/' + workspaceId + '/import', { method: 'POST', body: fd });
             if (r.ok) { this.importResult = await r.json(); this.errorMsg = ''; }
             else { const e = await r.json(); this.errorMsg = e.detail; }
             event.target.value = '';
@@ -218,8 +218,8 @@ function workspaceDetailPage(workspaceId) {
 
         async leaveWorkspace() {
             if (!confirm('Leave this workspace?')) return;
-            const r = await fetch('/api/workspaces/' + workspaceId + '/leave', { method: 'POST' });
-            if (r.ok) window.location.href = '/ui/workspaces';
+            const r = await fetch(rootPath + '/api/workspaces/' + workspaceId + '/leave', { method: 'POST' });
+            if (r.ok) window.location.href = rootPath + '/ui/workspaces';
             else { const e = await r.json(); this.errorMsg = e.detail; }
         },
     };
