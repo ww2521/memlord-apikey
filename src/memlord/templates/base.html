@@ -4,11 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Memlord{% endblock %}</title>
-    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="icon" type="image/png" href="{{ root_path }}/favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/alpinejs@3/dist/cdn.min.js" defer></script>
+    <script>var rootPath = "{{ root_path }}";</script>
     <style>
         /* ── Reset & base ─────────────────────────────────────────── */
         *, *::before, *::after {
@@ -739,15 +740,15 @@
 <body>
 <nav>
     <div class="nav-inner">
-        <a href="/" class="nav-brand">
-            <img src="/favicon.svg" class="nav-brand-icon" alt="Memlord">
+        <a href="{{ root_path }}/" class="nav-brand">
+            <img src="{{ root_path }}/favicon.svg" class="nav-brand-icon" alt="Memlord">
             Memlord
         </a>
         <div class="nav-divider"></div>
-        <a href="/ui/workspaces" class="btn btn-nav btn-sm">Workspaces</a>
-        <a href="/ui/settings" class="btn btn-nav btn-sm">Settings</a>
+        <a href="{{ root_path }}/ui/workspaces" class="btn btn-nav btn-sm">Workspaces</a>
+        <a href="{{ root_path }}/ui/settings" class="btn btn-nav btn-sm">Settings</a>
         <div class="nav-divider"></div>
-        <form action="/search" method="get" class="search-form">
+        <form action="{{ root_path }}/search" method="get" class="search-form">
             <input class="search-input" name="q" placeholder="Search memories…"
                    value="{{ query | default('') }}" autocomplete="off">
             <button type="submit" class="btn-search">Search</button>
@@ -755,7 +756,7 @@
         {% if user is defined %}
         <div class="nav-user">
             <span class="nav-user-name" title="{{ user.display_name }}">{{ user.display_name }}</span>
-            <form method="post" action="/ui/logout" style="margin:0">
+            <form method="post" action="{{ root_path }}/ui/logout" style="margin:0">
                 <button type="submit" class="btn-logout">Sign out</button>
             </form>
         </div>
@@ -765,7 +766,7 @@
 {% if smtp_configured and user is defined and not user.email_verified %}
 <div style="background:rgba(245,158,11,.12);border-bottom:1px solid rgba(245,158,11,.3);padding:.5rem 1.5rem;text-align:center;font-size:.8125rem;color:#fcd34d;">
     Please verify your email address. Didn't get the email?
-    <form method="post" action="/ui/resend-verification" style="display:inline">
+    <form method="post" action="{{ root_path }}/ui/resend-verification" style="display:inline">
         <button type="submit" style="background:none;border:none;color:#fbbf24;font-size:.8125rem;font-family:inherit;cursor:pointer;text-decoration:underline;padding:0;">Resend verification email</button>
     </form>
     {% if request.query_params.get('verification_sent') %}&nbsp;✓ Sent!{% endif %}
