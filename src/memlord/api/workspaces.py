@@ -1,10 +1,11 @@
 import json
 import logging
 
-from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from memlord.config import settings
 from memlord.dao import MemoryDao
 from memlord.dao.workspace import WorkspaceDao
 from memlord.db import APISessionDep
@@ -251,7 +252,6 @@ async def import_memories(
 
 @router.post("/{workspace_id}/invite", response_model=InviteResponse)
 async def create_invite(
-    request: Request,
     workspace_id: int,
     s: APISessionDep,
     user: APIUserDep,
@@ -273,7 +273,7 @@ async def create_invite(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    base = str(request.base_url).rstrip("/")
+    base = settings.base_url.rstrip("/")
     return InviteResponse(
         invite_url=f"{base}/ui/workspaces/join/{token}",
         expires_in_hours=body.expires_in_hours,
