@@ -68,7 +68,7 @@
             <div style="flex-shrink:0;width:1.375rem;height:1.375rem;border-radius:50%;background:var(--accent);color:#fff;font-size:.6875rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:.1rem;">2</div>
             <div style="flex:1;min-width:0;">
                 <p style="font-size:.875rem;font-weight:600;color:var(--text-2);margin-bottom:.375rem;">Use workspaces for projects <span style="font-size:.75rem;font-weight:400;color:var(--text-4);">— optional</span></p>
-                <p style="font-size:.8125rem;color:var(--text-3);">By default memories are personal. For project-specific memory, <a href="/ui/workspaces" onclick="closeConnectModal()">create a workspace</a> and give it a clear description.</p>
+                <p style="font-size:.8125rem;color:var(--text-3);">By default memories are personal. For project-specific memory, <a href="{{ root_path }}/ui/workspaces" onclick="closeConnectModal()">create a workspace</a> and give it a clear description.</p>
             </div>
         </div>
         <hr style="margin:0 0 1.25rem;">
@@ -77,7 +77,7 @@
             <div style="flex:1;min-width:0;">
                 <p style="font-size:.875rem;font-weight:600;color:var(--text-2);margin-bottom:.375rem;">Share a workspace with teammates <span style="font-size:.75rem;font-weight:400;color:var(--text-4);">— optional</span></p>
                 <p style="font-size:.8125rem;color:var(--text-3);">Open the workspace, click <strong>Generate invite link</strong>, and send it to your teammate.</p>
-                <div style="margin-top:.625rem;"><a href="/ui/workspaces" onclick="closeConnectModal()" class="btn btn-ghost btn-sm">Go to Workspaces →</a></div>
+                <div style="margin-top:.625rem;"><a href="{{ root_path }}/ui/workspaces" onclick="closeConnectModal()" class="btn btn-ghost btn-sm">Go to Workspaces →</a></div>
             </div>
         </div>
     </div>
@@ -128,11 +128,11 @@
     <template x-for="m in memories" :key="m.id">
         <div class="card" :class="m.memory_type ? 'card--' + m.memory_type : ''">
             <div x-show="m.workspace_name" style="font-size:.75rem;font-weight:600;color:#a78bfa;padding:.25rem 0 .1rem;letter-spacing:.03em">
-                <a :href="'/?workspace=' + (m.workspace_name === 'Personal' ? '__personal__' : m.workspace_name)"
+                <a :href="rootPath + '/?workspace=' + (m.workspace_name === 'Personal' ? '__personal__' : m.workspace_name)"
                    style="color:inherit;text-decoration:none">⬡ <span x-text="m.workspace_name"></span></a>
             </div>
             <div class="card-header">
-                <a :href="'/memory/' + m.workspace_id + '/' + m.id" style="flex:1;min-width:0;color:inherit;text-decoration:none;">
+                <a :href="rootPath + '/memory/' + m.workspace_id + '/' + m.id" style="flex:1;min-width:0;color:inherit;text-decoration:none;">
                     <div class="card-name" x-text="m.name"></div>
                     <div class="card-content" x-text="m.content.length > 280 ? m.content.slice(0, 280) + '…' : m.content"></div>
                 </a>
@@ -146,7 +146,7 @@
                     <span class="badge badge-type" :class="'badge-type--' + m.memory_type" x-text="m.memory_type"></span>
                 </template>
                 <template x-for="t in m.tags" :key="t">
-                    <a :href="'/?tag=' + t" class="tag" x-text="'#' + t"></a>
+                    <a :href="rootPath + '/?tag=' + t" class="tag" x-text="'#' + t"></a>
                 </template>
                 <span class="card-date" x-text="m.created_at"></span>
             </div>
@@ -184,7 +184,7 @@ function memoriesPage() {
         async init() {
             const [mems, wss] = await Promise.all([
                 this._fetchMemories(),
-                fetch('/api/workspaces').then(r => r.json()),
+                fetch(rootPath + '/api/workspaces').then(r => r.json()),
             ]);
             this.memories = mems.items;
             this.total = mems.total;
@@ -203,7 +203,7 @@ function memoriesPage() {
         },
 
         _fetchMemories() {
-            return fetch('/api/memories', {
+            return fetch(rootPath + '/api/memories', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -233,7 +233,7 @@ function memoriesPage() {
 
         async deleteMemory(wsId, id) {
             if (!confirm('Delete this memory?')) return;
-            const r = await fetch('/api/memories/' + wsId + '/' + id, { method: 'DELETE' });
+            const r = await fetch(rootPath + '/api/memories/' + wsId + '/' + id, { method: 'DELETE' });
             if (r.ok) this.memories = this.memories.filter(m => m.id !== id);
         },
 
@@ -250,18 +250,18 @@ function memoriesPage() {
             if (this.tag) p.set('tag', this.tag);
             if (this.workspace) p.set('workspace', this.workspace);
             const qs = p.toString();
-            history.replaceState(null, '', qs ? '/?' + qs : '/');
+            history.replaceState(null, '', qs ? rootPath + '/?' + qs : rootPath + '/');
         },
     };
 }
 
 function openConnectModal() {
     var origin = window.location.origin;
-    document.getElementById('connect-cmd').textContent = 'claude mcp add --transport http memlord ' + origin + '/mcp';
-    document.getElementById('connect-json').textContent = JSON.stringify({mcpServers:{memlord:{type:"http",url:origin+'/mcp'}}}, null, 2);
-    document.getElementById('connect-url').textContent = origin + '/mcp';
-    document.getElementById('connect-cursor-json').textContent = JSON.stringify({mcpServers:{memlord:{url:origin+'/mcp'}}}, null, 2);
-    document.getElementById('connect-chatgpt-url').textContent = origin + '/mcp';
+    document.getElementById('connect-cmd').textContent = 'claude mcp add --transport http memlord ' + origin + rootPath + '/mcp';
+    document.getElementById('connect-json').textContent = JSON.stringify({mcpServers:{memlord:{type:"http",url:origin+rootPath+'/mcp'}}}, null, 2);
+    document.getElementById('connect-url').textContent = origin + rootPath + '/mcp';
+    document.getElementById('connect-cursor-json').textContent = JSON.stringify({mcpServers:{memlord:{url:origin+rootPath+'/mcp'}}}, null, 2);
+    document.getElementById('connect-chatgpt-url').textContent = origin + rootPath + '/mcp';
     ['copy-cmd-btn','copy-json-btn','copy-url-btn','copy-cursor-btn','copy-chatgpt-btn'].forEach(function(id){
         var el = document.getElementById(id);
         if (el) el.textContent = 'Copy';
