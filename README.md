@@ -165,11 +165,59 @@ All settings use the `MEMLORD_` prefix. See [`.env.example`](.env.example) for t
 | `MEMLORD_DB_URL`           | `postgresql+asyncpg://postgres:postgres@localhost/memlord` | PostgreSQL connection URL                         |
 | `MEMLORD_PORT`             | `8000`                                                     | Server port                                       |
 | `MEMLORD_BASE_URL`         | `http://localhost:8000`                                    | Public URL for OAuth (HTTP mode)                  |
+| `MEMLORD_ROOT_PATH`        | *(empty)*                                                  | Reverse proxy subpath (e.g. `/memlord`)           |
 | `MEMLORD_OAUTH_JWT_SECRET` | `memlord-dev-secret-please-change`                         | JWT signing secret (HTTP mode)                    |
 | `MEMLORD_STDIO_USER_ID`    | —                                                          | User ID to use in STDIO mode (required for stdio) |
 
 In HTTP mode, set `MEMLORD_BASE_URL` to your public URL and change `MEMLORD_OAUTH_JWT_SECRET` before deploying.
 In STDIO mode, OAuth is skipped — set `MEMLORD_STDIO_USER_ID` to your numeric user ID instead.
+
+### Reverse proxy subpath
+
+When deploying behind a reverse proxy at a subpath (e.g. `example.com/memlord`), set both variables:
+
+```
+MEMLORD_BASE_URL=https://example.com/memlord
+MEMLORD_ROOT_PATH=/memlord
+```
+
+`MEMLORD_BASE_URL` must end with the value of `MEMLORD_ROOT_PATH`. The server validates this on startup.
+
+### Azure SSO
+
+Enable Azure AD authentication by setting these variables:
+
+```
+MEMLORD_AZURE_SSO_ENABLED=true
+MEMLORD_AZURE_CLIENT_ID=<your-azure-app-client-id>
+MEMLORD_AZURE_CLIENT_SECRET=<your-azure-app-client-secret>
+MEMLORD_AZURE_TENANT_ID=<your-azure-tenant-id>
+MEMLORD_AZURE_REDIRECT_URI=https://example.com/auth/azure/callback
+```
+
+**Azure App Registration steps:**
+
+1. Go to **Azure Portal → Microsoft Entra ID → App registrations → New registration**
+2. Set **Redirect URI** to the value of `MEMLORD_AZURE_REDIRECT_URI` (e.g. `https://your-domain/auth/azure/callback`)
+3. Copy the **Application (client) ID** → `MEMLORD_AZURE_CLIENT_ID`
+4. Copy the **Directory (tenant) ID** → `MEMLORD_AZURE_TENANT_ID`
+5. Go to **Certificates & secrets → New client secret** → `MEMLORD_AZURE_CLIENT_SECRET`
+6. Under **API Permissions**, ensure `User.Read` (Microsoft Graph) is granted
+
+Optional variables:
+
+| Variable | Description |
+|----------|-------------|
+| `MEMLORD_AZURE_SCOPE` | OAuth scopes (default: `openid profile email`) |
+| `MEMLORD_AZURE_LOGIN_BUTTON_TEXT` | Text on the login button (default: `Sign in with Azure AD`) |
+| `MEMLORD_AZURE_ALLOWED_EMAIL_DOMAINS` | Comma-separated list; restricts login to specific domains |
+
+To disable local password login or registration:
+
+```
+MEMLORD_LOCAL_PASSWORD_LOGIN_ENABLED=false
+MEMLORD_LOCAL_REGISTRATION_ENABLED=false
+```
 
 ---
 
