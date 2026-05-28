@@ -142,6 +142,7 @@ async def test_login_page_shows_azure_button_when_enabled(monkeypatch):
         "azure_login_button_text": "Sign in with Azure AD",
         "local_password_login_enabled": True,
         "local_registration_enabled": True,
+        "root_path": "",
     })())
     from memlord.main import app
     from starlette.testclient import TestClient
@@ -159,6 +160,7 @@ async def test_login_page_hides_password_form_when_disabled(monkeypatch):
         "azure_login_button_text": "SSO",
         "local_password_login_enabled": False,
         "local_registration_enabled": True,
+        "root_path": "",
     })())
     from memlord.main import app
     from starlette.testclient import TestClient
@@ -176,6 +178,7 @@ async def test_register_page_redirects_when_disabled(monkeypatch):
         "azure_login_button_text": "SSO",
         "local_password_login_enabled": True,
         "local_registration_enabled": False,
+        "root_path": "",
     })())
     from memlord.main import app
     from starlette.testclient import TestClient
@@ -192,6 +195,7 @@ async def test_login_page_hides_register_link_when_disabled(monkeypatch):
         "azure_login_button_text": "SSO",
         "local_password_login_enabled": True,
         "local_registration_enabled": False,
+        "root_path": "",
     })())
     from memlord.main import app
     from starlette.testclient import TestClient

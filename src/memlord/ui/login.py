@@ -10,13 +10,14 @@ from memlord.db import APISessionDep
 from memlord.models.email_token import TokenPurpose
 from memlord.utils.mail_send import send_email
 
-from .utils import APIUserDep, set_session_cookie, templates
+from .utils import APIUserDep, delete_session_cookie, set_session_cookie, templates
 
 router = APIRouter()
 
 
 def _safe_redirect(next: str) -> str:
-    return next if (next.startswith("/") and not next.startswith("//")) else "/"
+    rp = settings.root_path.rstrip("/")
+    return next if (next.startswith("/") and not next.startswith("//")) else f"{rp}/"
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -38,6 +39,8 @@ async def login_post(
     password: str = Form(),
     next: str = Form(default="/"),
 ) -> Response:
+    if not next:
+        next = f"{settings.root_path.rstrip('/')}/"
     user = await UserDao(s).authenticate(email, password)
 
     if user is None:
@@ -62,15 +65,15 @@ async def login_post(
 
 @router.post("/logout")
 async def logout() -> Response:
-    response = RedirectResponse("/ui/login", status_code=303)
-    response.delete_cookie("memlord_session")
+    response = RedirectResponse(f"{settings.root_path.rstrip('/')}/ui/login", status_code=303)
+    delete_session_cookie(response)
     return response
 
 
 @router.get("/register", response_class=HTMLResponse)
 async def register_get(request: Request, next: str = "/") -> Response:
     if not settings.local_registration_enabled:
-        return RedirectResponse("/ui/login", status_code=303)
+        return RedirectResponse(f"{settings.root_path.rstrip('/')}/ui/login", status_code=303)
     return templates.TemplateResponse(request, "register.html", {"next": next})
 
 
@@ -84,8 +87,10 @@ async def register_post(
     password2: str = Form(min_length=6),
     next: str = Form(default="/"),
 ) -> Response:
+    if not next:
+        next = f"{settings.root_path.rstrip('/')}/"
     if not settings.local_registration_enabled:
-        return RedirectResponse("/ui/login", status_code=303)
+        return RedirectResponse(f"{settings.root_path.rstrip('/')}/ui/login", status_code=303)
 
     def _err(msg: str) -> HTMLResponse:
         return templates.TemplateResponse(
@@ -158,7 +163,7 @@ if settings.smtp_host:
     async def resend_verification(user: APIUserDep, s: APISessionDep) -> Response:
         user = await UserDao(s).get_by_id(user.id)
         if user is None or user.email_verified:
-            return RedirectResponse("/", status_code=303)
+            return RedirectResponse(f"{settings.root_path.rstrip('/')}/", status_code=303)
 
         raw_token = await EmailTokenDao(s).create(user.id, TokenPurpose.verify)
         await send_email(
@@ -166,7 +171,7 @@ if settings.smtp_host:
             subject="Verify your Memlord email",
             body=_verify_email_body(raw_token),
         )
-        return RedirectResponse("/?verification_sent=1", status_code=303)
+        return RedirectResponse(f"{settings.root_path.rstrip('/')}/?verification_sent=1", status_code=303)
 
     def _reset_email_body(token: str) -> str:
         url = f"{settings.base_url}/ui/reset-password?token={token}"
@@ -240,4 +245,4 @@ if settings.smtp_host:
             return _err("This link is invalid or has expired.")
 
         await UserDao(s).set_password(user_id, hash_password(password))
-        return RedirectResponse("/ui/login?reset=1", status_code=303)
+        return RedirectResponse(f"{settings.root_path.rstrip('/')}/ui/login?reset=1", status_code=303)
