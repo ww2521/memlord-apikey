@@ -29,13 +29,21 @@ def make_session_token(user_id: int) -> str:
 
 def set_session_cookie(response: Response, user_id: int) -> None:
     """Set the memlord_session cookie on the response."""
+    rp = settings.root_path.rstrip("/")
     response.set_cookie(
         "memlord_session",
         make_session_token(user_id),
         httponly=True,
         samesite="lax",
         secure=settings.base_url.startswith("https"),
+        path=f"{rp}/",
     )
+
+
+def delete_session_cookie(response: Response) -> None:
+    """Delete the memlord_session cookie from the response."""
+    rp = settings.root_path.rstrip("/")
+    response.delete_cookie("memlord_session", path=f"{rp}/")
 
 
 def _require_auth(request: Request) -> int:
@@ -73,9 +81,10 @@ def _require_auth(request: Request) -> int:
 
 
 def _redirect(request: Request) -> NoReturn:
+    rp = settings.root_path.rstrip("/")
     raise HTTPException(
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-        headers={"Location": f"/ui/login?next={request.url.path}"},
+        headers={"Location": f"{rp}/ui/login?next={request.url.path}"},
     )
 
 
@@ -92,4 +101,4 @@ async def get_current_user(
 
 APIUserDep = Annotated[UserInfo, Depends(get_current_user)]
 
-__all__ = ["APIUserDep", "make_session_token", "set_session_cookie", "templates"]
+__all__ = ["APIUserDep", "make_session_token", "set_session_cookie", "delete_session_cookie", "templates"]
